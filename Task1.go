@@ -16,7 +16,7 @@ var src = flag.String("src", "", "Ссылка на файл с сcылками"
 
 var dst = flag.String("dst", "", "Путь для записи файлов")
 
-func connect(element string, i int, wg sync.WaitGroup) {
+func connect(element string, i int, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	if !strings.HasPrefix(element, "https://") {
@@ -73,11 +73,9 @@ func main() {
 	fmt.Println(len(textTotal))
 	for i, element := range textTotal {
 		wg.Add(1)
-		fmt.Println("ELEMENT", element)
-		go connect(element, i, wg)
+		go connect(element, i, &wg)
 	}
 	wg.Wait()
-	fmt.Println("WG dONE")
 	elapsed := time.Since(start)
 	fmt.Println("Время выполнения программы:", elapsed)
 }
