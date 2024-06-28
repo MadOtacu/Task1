@@ -2,13 +2,13 @@ package main
 
 import (
 	"bytes"
-	"errors"
 	"flag"
 	"fmt"
 	"net/http"
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -16,9 +16,12 @@ var src = flag.String("src", "", "Ссылка на файл с сcылками"
 
 var dst = flag.String("dst", "", "Путь для записи файлов")
 
-func connect(element string) (*bytes.Buffer, error) {
+func connect(element string, i int, wg sync.WaitGroup) {
+	defer wg.Done()
+
 	if !strings.HasPrefix(element, "https://") {
-		return nil, errors.New("Invalid link")
+		fmt.Println("Элемент " + element + " не является ссылкой")
+		return
 	}
 
 	data := bytes.Buffer{}
@@ -26,7 +29,7 @@ func connect(element string) (*bytes.Buffer, error) {
 	resp, errServ := http.Get(element)
 	if errServ != nil {
 		fmt.Println("Хост " + element + " не отвечает")
-		return nil, errors.New("Host is not responding")
+		return
 	}
 	defer resp.Body.Close()
 
@@ -34,10 +37,19 @@ func connect(element string) (*bytes.Buffer, error) {
 	if copyErr != nil {
 		panic(copyErr)
 	}
-	return &data, nil
+
+	num := strconv.Itoa(i)
+	fmt.Println("Запись данных из " + element + " в файл " + num + ".html")
+	writeErr := os.WriteFile(*dst+num+".html", data.Bytes(), 0777)
+	if writeErr != nil {
+		panic(writeErr)
+	}
+
+	fmt.Println("В файл " + num + ".html сохранен шаблон сайта " + element)
 }
 
 func main() {
+	var wg sync.WaitGroup
 	start := time.Now()
 	flag.Parse()
 
@@ -57,22 +69,15 @@ func main() {
 
 	text := string(byteText)
 	textArr := strings.Split(text, "\n")
-
-	for i, element := range textArr {
-		temp, connectErr := connect(element)
-		if connectErr != nil {
-			continue
-		}
-
-		num := strconv.Itoa(i)
-		fmt.Println("Запись данных из " + element + " в файл " + num + ".html")
-		writeErr := os.WriteFile(*dst+num+".html", temp.Bytes(), 0777)
-		if writeErr != nil {
-			panic(writeErr)
-		}
-
-		fmt.Println("В файл " + num + ".html сохранен шаблон сайта " + element)
+	textTotal := textArr[:len(textArr)-1]
+	fmt.Println(len(textTotal))
+	for i, element := range textTotal {
+		wg.Add(1)
+		fmt.Println("ELEMENT", element)
+		go connect(element, i, wg)
 	}
+	wg.Wait()
+	fmt.Println("WG dONE")
 	elapsed := time.Since(start)
 	fmt.Println("Время выполнения программы:", elapsed)
 }
